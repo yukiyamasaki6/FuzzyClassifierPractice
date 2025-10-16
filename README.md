@@ -1,0 +1,2 @@
+# FuzzyClassifierPractice
+古川さん用の練習用ファジィ分類器
