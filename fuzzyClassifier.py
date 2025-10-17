@@ -30,10 +30,10 @@ def write_hyperparameters_to_csv():
 def write_evaluation_to_csv(
         mean_accuracy,
         weights,
-        feature_names,
-        target_names,
+        input_dim,
         rules_per_input,
-        num_inputs
+        feature_names,
+        target_names
         ):
     filename = settings.OUTPUT_PATH
     
@@ -48,13 +48,12 @@ def write_evaluation_to_csv(
             target_names = target_names.tolist()
         
         # Header: Rule combinations for each class
-        total_rules = rules_per_input ** num_inputs
         writer.writerow(["Rule_Index"] + target_names)
         
         # Write weights for each rule combination
-        for rule_idx in range(total_rules):            
+        for rule_idx, weight in enumerate(weights.tolist()):       
             rule_name = f"Rule_{rule_idx}"
-            writer.writerow([rule_name] + weights[rule_idx].tolist())
+            writer.writerow([rule_name] + weight)
         writer.writerow([])
 
 def load_custom_dataset(filename):
@@ -96,22 +95,22 @@ def get_dataset():
     return X, y, input_dim, classes, feature_names, target_names
 
 class FuzzyClassifier(nn.Module):
-    def __init__(self, num_inputs, num_rules_per_input, num_classes, tune_m_v=False):
+    def __init__(self, input_dim, rules_per_input, classes, tune_m_v=False):
         super(FuzzyClassifier, self).__init__()
 
         # Store dimensions for reference
-        self.num_inputs = num_inputs
-        self.num_rules_per_input = num_rules_per_input
-        self.num_classes = num_classes
+        self.num_inputs = input_dim
+        self.num_rules_per_input = rules_per_input
+        self.num_classes = classes
 
         # Parameters for Gaussian membership functions for each input dimension
-        self.mean = nn.Parameter(torch.linspace(0, 1, num_rules_per_input), requires_grad=tune_m_v)
-        interval = 1.0 / (num_rules_per_input - 1)
-        self.variance = nn.Parameter(torch.full((num_rules_per_input,), (interval/2)**2 / (2 * torch.abs(torch.log(torch.tensor(0.5))))), requires_grad=tune_m_v)
+        self.mean = nn.Parameter(torch.linspace(0, 1, rules_per_input), requires_grad=tune_m_v)
+        interval = 1.0 / (rules_per_input - 1)
+        self.variance = nn.Parameter(torch.full((rules_per_input,), (interval/2)**2 / (2 * torch.abs(torch.log(torch.tensor(0.5))))), requires_grad=tune_m_v)
         
         # Weights for each combined rule and class
-        total_rules = num_rules_per_input ** num_inputs
-        self.weights = nn.Parameter(torch.rand(total_rules, num_classes))
+        total_rules = rules_per_input ** input_dim
+        self.weights = nn.Parameter(torch.rand(total_rules, classes))
     
     def get_membership(self, x):
         """
@@ -253,12 +252,7 @@ def fuzzyClassifierMain():
         y_test = torch.tensor(y_test, dtype=torch.long).to(device)  # Change to long for one-hot encoding
 
         # Initialize the Fuzzy Classifier model
-        model = FuzzyClassifier(
-            num_inputs=input_dim,
-            num_rules_per_input=rules_per_input,
-            num_classes=classes,
-            tune_m_v=tune_m_v
-        ).to(device)
+        model = FuzzyClassifier(input_dim, rules_per_input, classes, tune_m_v).to(device)
         optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 
         # Training loop
@@ -282,10 +276,10 @@ def fuzzyClassifierMain():
     write_evaluation_to_csv(
         mean_accuracy,
         weights,
-        feature_names,
-        target_names,
+        input_dim,
         rules_per_input,
-        input_dim
+        feature_names,
+        target_names
     )
                 
 if __name__ == "__main__":
