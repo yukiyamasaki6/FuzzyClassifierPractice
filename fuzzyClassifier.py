@@ -104,9 +104,16 @@ class FuzzyClassifier(nn.Module):
         self.num_classes = classes
 
         # Parameters for Gaussian membership functions for each input dimension
-        self.mean = nn.Parameter(torch.linspace(0, 1, rules_per_input), requires_grad=tune_m_v)
+        # Shape: [input_dim, rules_per_input]
+        self.mean = nn.Parameter(
+            torch.linspace(0, 1, rules_per_input).unsqueeze(0).repeat(input_dim, 1), 
+            requires_grad=tune_m_v
+        )
         interval = 1.0 / (rules_per_input - 1)
-        self.variance = nn.Parameter(torch.full((rules_per_input,), (interval/2)**2 / (2 * torch.abs(torch.log(torch.tensor(0.5))))), requires_grad=tune_m_v)
+        self.variance = nn.Parameter(
+            torch.full((input_dim, rules_per_input), (interval/2)**2 / (2 * torch.abs(torch.log(torch.tensor(0.5))))), 
+            requires_grad=tune_m_v
+        )
         
         # Weights for each combined rule and class
         total_rules = rules_per_input ** input_dim
@@ -130,8 +137,9 @@ class FuzzyClassifier(nn.Module):
         for i in range(self.num_inputs):
             x_i = x[:, i].unsqueeze(1)  # [batch_size, 1]
             # Gaussian membership function for dimension i
-            gaussian_numerator = -(x_i - self.mean) ** 2  # [batch_size, num_rules_per_input]
-            gaussian_denominator = 2 * self.variance  # [num_rules_per_input]
+            # Use dimension-specific mean and variance
+            gaussian_numerator = -(x_i - self.mean[i]) ** 2  # [batch_size, num_rules_per_input]
+            gaussian_denominator = 2 * self.variance[i]  # [num_rules_per_input]
             membership_i = torch.exp(gaussian_numerator / gaussian_denominator)  # [batch_size, num_rules_per_input]
             membership_per_dim.append(membership_i)
 
