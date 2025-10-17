@@ -99,21 +99,19 @@ class FuzzyClassifier(nn.Module):
         super(FuzzyClassifier, self).__init__()
 
         # Store dimensions for reference
-        self.num_inputs = input_dim
-        self.num_rules_per_input = rules_per_input
-        self.num_classes = classes
+        self.input_dim = input_dim
+        self.rules_per_input = rules_per_input
+        self.classes = classes
 
         # Parameters for Gaussian membership functions for each input dimension
-        # Shape: [input_dim, rules_per_input]
-        self.mean = nn.Parameter(
-            torch.linspace(0, 1, rules_per_input).unsqueeze(0).repeat(input_dim, 1), 
-            requires_grad=tune_m_v
-        )
-        interval = 1.0 / (rules_per_input - 1)
-        self.variance = nn.Parameter(
-            torch.full((input_dim, rules_per_input), (interval/2)**2 / (2 * torch.abs(torch.log(torch.tensor(0.5))))), 
-            requires_grad=tune_m_v
-        )
+        """
+            ★演習1 ガウス型のメンバーシップ関数のパラメータを定義する．
+            ヒント:
+                ガウス型のメンバーシップ関数のパラメータは2つ
+                各パラメータはメンバーシップ関数の個数と同じサイズを持つ
+            チャレンジ:
+                tune_m_vに応じた処理を行う
+        """
         
         # Weights for each combined rule and class
         total_rules = rules_per_input ** input_dim
@@ -121,40 +119,27 @@ class FuzzyClassifier(nn.Module):
     
     def get_membership(self, x):
         """
-        各ルールのメンバーシップ値を計算
-        各入力次元のルールのメンバーシップ値の積で全体のルールのメンバーシップ値を求める
-        
-        Args:
-            x: [batch_size, num_inputs]
-        
-        Returns:
-            membership: [batch_size, num_rules_per_input**num_inputs]
+            ★演習2 各ルールに対するメンバーシップ値を計算する関数を定義する        
+            入力:
+                x: [batch_size, input_dim]
+            出力:
+                membership: [batch_size, rules_per_input**input_dim]
         """
-        batch_size = x.size(0)
 
         # Calculate membership for each input dimension
-        membership_per_dim = []
-        for i in range(self.num_inputs):
-            x_i = x[:, i].unsqueeze(1)  # [batch_size, 1]
-            # Gaussian membership function for dimension i
-            # Use dimension-specific mean and variance
-            gaussian_numerator = -(x_i - self.mean[i]) ** 2  # [batch_size, num_rules_per_input]
-            gaussian_denominator = 2 * self.variance[i]  # [num_rules_per_input]
-            membership_i = torch.exp(gaussian_numerator / gaussian_denominator)  # [batch_size, num_rules_per_input]
-            membership_per_dim.append(membership_i)
+        """
+            演習2-1 各入力次元に対するメンバーシップ値を計算する
+            ヒント:
+                演習1で定義したガウス型メンバーシップ関数のパラメータを使用する
+        """
 
         # Compute Cartesian product of memberships across all input dimensions
-        # 例: X1={S,M,L}, X2={S,M,L} → 9個のルール: SS, SM, SL, MS, MM, ML, LS, LM, LL
-        membership = membership_per_dim[0]  # [batch_size, num_rules_per_input]
-        
-        for i in range(1, self.num_inputs):
-            # membership: [batch_size, current_total_rules]
-            # membership_per_dim[i]: [batch_size, num_rules_per_input]
-            membership = membership.unsqueeze(2) * membership_per_dim[i].unsqueeze(1)
-            # Reshape to flatten the new dimension
-            membership = membership.view(batch_size, -1)
-
-        return membership
+        """
+            演習2-2 各入力次元のメンバーシップ値を基に全ルールのメンバーシップ値を計算する
+            ヒント:
+                演習2-1で計算した各入力次元のメンバーシップ値を使用する
+                X1={S,M,L}, X2={S,M,L} → 9個のルール: SS, SM, SL, MS, MM, ML, LS, LM, LL
+        """
 
     def forward(self, x):
         membership = self.get_membership(x)  # [batch_size, num_rules**num_inputs]
@@ -197,16 +182,8 @@ def training_FuzzyClassifier(num_epochs, classes, X_train, y_train, model, optim
 
 def compute_accuracy(model, X_test, y_test):
     """
-    Accuracy: モデルの予測精度を計算
+        ★演習3 モデルの予測精度を計算する関数を定義する
     """
-    model.eval()
-    with torch.no_grad():
-        test_predictions = model(X_test)
-        _, predicted_classes = torch.max(test_predictions, 1)
-        accuracy = accuracy_score(
-            y_test.cpu().numpy(), predicted_classes.cpu().numpy()
-        )
-    return accuracy
 
 def fuzzyClassifierMain():
     # Get hyperparameters
